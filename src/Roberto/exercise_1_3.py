@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.optimize import nnls
+
 
 # transfer function
 def phi(x, a=1, k=2):
@@ -30,6 +32,7 @@ A = np.concatenate((r, I, np.ones((1, number_of_probes))), axis=0)
 y = phi_inverse(r_i)
 
 # compute lstsq
-x, res, rank, s = np.linalg.lstsq(A.T, y)
+# x, res, rank, s = np.linalg.lstsq(A.T, y)
+x, rnorm = nnls(A.T, y)
 W = x[:n_connection_to_neuron_i]  # weights in input to neuron i
 K = x[n_connection_to_neuron_i:]  # FF weights in input to neuron i
