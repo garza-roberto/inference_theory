@@ -6,6 +6,9 @@ import numpy as np
 from scipy.optimize import nnls
 from scipy.io import loadmat
 
+import matplotlib
+matplotlib.use('Qt5Agg')
+
 
 # %% utils
 # transfer function
@@ -28,6 +31,7 @@ for k in data_raw.keys():
         cell_activity_all[k] = data_raw[k]
 
 inhibitory_cells = ["pv", "sst", "vip"]
+cell_label_list = ["pyr", "pv", "sst", "vip"]
 
 # configuration
 n = len(cell_activity.keys())
@@ -83,7 +87,7 @@ for i, k in enumerate(cell_activity.keys()):
 plt.figure()
 plt.pcolormesh(transform_matrix)
 plt.colorbar()
-plt.show()
+# plt.show()
 
 
 # %% predict and plot results
@@ -100,8 +104,16 @@ fig, axs = plt.subplots(1, len(cell_activity_all.keys()))
 for i_k, k in enumerate(cell_activity_all.keys()):
     error = np.sqrt(np.sum((all_pred[i_k, :] - cell_activity[k])**2))
     print(f"TEST | residual error for cell {k}: {error}")
-    axs[i_k].plot(contrast, cell_activity[k], label="data")
-    axs[i_k].plot(contrast, all_pred[i_k, :], label="simulation")
-    axs[i_k].legend()
-
+    axs[i_k].plot(contrast, cell_activity[k], label="data" if i_k == 0 else "_nolegend_")
+    axs[i_k].plot(contrast, all_pred[i_k, :], label="simulation" if i_k == 0 else "_nolegend_")
+    axs[i_k].set_title(cell_label_list[i_k])
+    axs[i_k].set_xlim(0, 1)
+    axs[i_k].set_xlabel("contrast")
+    # axs[i_k].set_xticks(contrast)
+    axs[i_k].set_ylim(0, 1)
+    if i_k == 0:
+        axs[i_k].set_ylabel("mean r")
+    else:
+        axs[i_k].set_yticks([])
+fig.legend()
 plt.show()
