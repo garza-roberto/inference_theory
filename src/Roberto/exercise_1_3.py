@@ -85,7 +85,8 @@ for i, k in enumerate(cell_activity.keys()):
 # %% plot transform matrix
 # transform_matrix = np.concatenate((connectivity_matrix, ff_matrix), axis=1)
 plt.figure()
-plt.pcolormesh(transform_matrix)
+# plt.pcolormesh(transform_matrix)
+plt.matshow(transform_matrix)
 plt.colorbar()
 # plt.show()
 
@@ -115,5 +116,9 @@ for i_k, k in enumerate(cell_activity_all.keys()):
         axs[i_k].set_ylabel("mean r")
     else:
         axs[i_k].set_yticks([])
+
+
+print(f"transform_matrix: {transform_matrix}")
+
 fig.legend()
 plt.show()
