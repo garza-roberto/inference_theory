@@ -15,7 +15,7 @@ def plot_trial(sample_input, sample_output):
     for j in range(sample_output.shape[0]):
         plt.plot(sample_output[j, :], label=sample_output[k, 0], color="orange")
     plt.legend()
-    plt.show()
+    # plt.show()
 
 
 def train_model(model, train_loader, numb_epochs, continue_training=False, optimizer=None, losses=[], bias=False):
@@ -39,6 +39,7 @@ def train_model(model, train_loader, numb_epochs, continue_training=False, optim
         # reshape data
         inputs = inputs.permute(2, 0, 1).float()  # Input has shape (SeqLen, Batch, Dim)
         target = target.permute(2, 0, 1).float()  # Target has shape (SeqLen, Batch,Dim)
+        # target = target.permute(1, 0, 2).float()  # Target has shape (SeqLen, Batch,Dim)
         inputs = inputs.to('cpu')  # inputs.to('mps')
         target = target.to('cpu')  # target.to('mps')
 

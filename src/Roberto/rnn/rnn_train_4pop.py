@@ -6,9 +6,8 @@ from matplotlib import pyplot as plt
 from scipy.io import loadmat
 from torch.utils.data import DataLoader, random_split
 
-from src.Roberto.rnn.moments_task import moments_task_subsample, moments_task_interpolate
-from src.Roberto.rnn.rnn_1pop import RNNNet
-from src.Roberto.rnn.rnn_2pop import RNNNet2pop
+from src.Roberto.rnn.model.rnn_4pop import RNNNet4pop
+from src.Roberto.rnn.tasks.moments_task_Npop import moments_task_interpolate
 from src.Roberto.rnn.utils import plot_trial, train_model
 
 import matplotlib
@@ -24,7 +23,7 @@ batch_size = 20             # size of data batch for training
 seq_len = 1000              # sequence length
 input_size = 2              # input dimension
 output_size = 2             # output dimension
-hidden_size = 500           # number of neurons in the recurrent network or "hidden layer"
+hidden_size = 50           # number of neurons in the recurrent network or "hidden layer"
 train_initial_state = True  # whether we want to train the initial state of the network
 inhibitory_cells = ["pv", "sst", "vip"]
 cell_label_list = ["pyr", "pv", "sst", "vip"]
@@ -37,6 +36,7 @@ data_raw = loadmat(path_data)
 contrast = np.squeeze(data_raw['contrast']) / 100
 cell_activity = {}
 cell_activity_all = {}
+cell_activity_array = []
 for k in data_raw.keys():
     if not k.startswith("_") and k != "contrast":
         cell_activity[k] = np.mean(data_raw[k], axis=0)
@@ -47,7 +47,7 @@ for k in data_raw.keys():
 
 # %% define NN
 # Create a network instance
-model_test = RNNNet2pop(tau=50, input_size=input_size, hidden_size=hidden_size, output_size=output_size, bias=False, train_initial_state=train_initial_state)
+model_test = RNNNet4pop(tau=50, input_size=input_size, hidden_size=hidden_size, output_size=output_size, bias=False, train_initial_state=train_initial_state)
 model_test = model_test.to(device) # move to gpu
 h0 = model_test.rnn.h2h.weight
 print('Std of initial connectivity matrix is ' + str(h0.std()))
@@ -72,8 +72,9 @@ print(model_test)
 task_type = 'moments'
 
 # define parameters for the task *task specific information that is not relevant for the network
+cell_activity_sample = {}
 config = {
-    "r": cell_activity_all[cell_label_list[0]],
+    "r": cell_activity_all,
     "contrasts": contrast,
     "n_neurons": 1e4
 }
@@ -115,14 +116,14 @@ for n in range(1):
 
 # %% train
 # Network Parameters
-hidden_size = 50  # number of neurons
+hidden_size = 100  # number of neurons
 input_size = np.array(sample_input).shape[0]  # input dimension
 output_size = np.array(sample_output).shape[0]  # output dimension
 dt = 1  # 1ms time step
 numb_epochs = 1000  # number of training epochs (each training epoch run through a batch of data)
 
 # Create an instanciation of the model with the specification of the task above
-model = RNNNet(input_size=input_size, hidden_size=hidden_size, output_size=output_size, dt=dt, bias=False, tau=50,
+model = RNNNet4pop(input_size=input_size, hidden_size=hidden_size, output_size=output_size, dt=dt, bias=False, tau=50,
                train_initial_state=True)
 print(model)
 
@@ -165,7 +166,7 @@ if losses[-1] > training_stop_threshold:
 test_size = 20
 
 # generate testing data
-test_dataset = moments_task_subsample(**config) # create training data set
+test_dataset = moments_task_interpolate(**config) # create training data set
 test_loader = DataLoader(test_dataset, batch_size=test_size, shuffle=False)
 inputs, targets, seq_length = next(iter(test_loader)) # create next batch of testing data
 inputs = inputs.permute(2, 0, 1).float()
@@ -206,4 +207,12 @@ for i in r_idx:
 plt.title(f'Activity of neurons for trial {idx}')
 plt.xlabel('Time Steps')
 plt.ylabel('r(t)')
+
+
+plt.imshow(torch.relu(model.rnn.h2h.weight.data) @ model.rnn.ei_diag)
+plt.xlabel('pre-synaptic')
+plt.ylabel('post-synaptic')
+plt.colorbar()
+
+
 plt.show()

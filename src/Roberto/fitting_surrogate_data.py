@@ -97,7 +97,7 @@ for i_simulation in range(n_simulations):
 
     if ((1 - transform_matrix[0, :] @ phi(r[:, 0])) / tau < 0) and \
         transform_matrix[2, 2] == 0 and transform_matrix[3, 3] == 0 and \
-        transform_matrix[0, 3] <= 0.5 and transform_matrix[1, 3] <= 0.5  and\
+        transform_matrix[0, 3] <= 0.5 and transform_matrix[1, 3] <= 0.5  and \
         (np.linalg.norm(rnorm) < rnorm_threshold):
         number_found_items += 1
         print(f"FOUND {number_found_items}")

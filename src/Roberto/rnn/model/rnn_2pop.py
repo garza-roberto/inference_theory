@@ -12,20 +12,17 @@ class MaskedExpLinear(nn.Linear):
         self.mask = mask
 
     def forward(self, input):
-        # Expand the tensor to enable multiplication with self.weight
-        print("input ", input.shape)
-        print("masks ", self.mask.shape)
-        print("self.weight ", self.weight.shape)
-        return F.linear(input, self.mask * torch.exp(self.weight), self.bias)
+        return F.linear(input, torch.relu(self.weight) @ self.mask, self.bias)
 
 class CTRNN2pop(nn.Module):  # to create a recurrent neural network with an input layer (does not have an output layer yet)
     def __init__(self, input_size, hidden_size, **kwargs):
         # define all the network params
         super().__init__()
-        self.percentage_excitatory = 0.3
+        self.percentage_excitatory = 0.25
         self.number_neurons_excitatory = int(self.percentage_excitatory * hidden_size)
-        self.mask = torch.ones((hidden_size, hidden_size))
-        self.mask[:, self.number_neurons_excitatory:] *= -1
+        # self.mask = torch.tensor(np.diag(np.concatenate((np.ones(self.number_neurons_excitatory), -1*np.ones(hidden_size-self.number_neurons_excitatory)))), dtype=torch.float32)
+        self.mask = torch.diag(torch.ones(hidden_size))
+        self.mask[self.number_neurons_excitatory:, self.number_neurons_excitatory:] *= -1
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.device = "cpu"  # ("mps" if torch.backends.mps.is_available() else "cpu") # define device as machine gpu
@@ -45,9 +42,9 @@ class CTRNN2pop(nn.Module):  # to create a recurrent neural network with an inpu
             hidden_size))  # initialize recurrent weights to g/sqrt(N) (with spectral radius of 1)
 
         if self.train_initial_state:  # if we want to train initial conditions of the network
-            # initial_hidden_tensor = torch.zeros(1, hidden_size, requires_grad=True,device=self.device) # if you want to initialize the network activity to 0s
-            initial_hidden_tensor = torch.rand(1, self.hidden_size, requires_grad=self.train_initial_state,
-                                               device=self.device) * 2 - 1
+            initial_hidden_tensor = torch.zeros(1, hidden_size, requires_grad=True,device=self.device) # if you want to initialize the network activity to 0s
+            # initial_hidden_tensor = torch.rand(1, self.hidden_size, requires_grad=self.train_initial_state,
+            #                                    device=self.device) * 2 - 1
             self.initial_hidden = nn.Parameter(initial_hidden_tensor)
             self.register_parameter('initial_hidden', self.initial_hidden)
         else:
@@ -81,14 +78,27 @@ class CTRNN2pop(nn.Module):  # to create a recurrent neural network with an inpu
 class RNNNet2pop(nn.Module):  # to create the full model with the recurrent part above and an output layer
     def __init__(self, input_size, hidden_size, output_size, **kwargs):
         super().__init__()
+        self.percentage_excitatory = 0.25
+        self.number_neurons_excitatory = int(self.percentage_excitatory * hidden_size)
         self.bias = kwargs.get('bias', False)
         self.device = "cpu"  # ("mps" if torch.backends.mps.is_available() else "cpu")
         self.rnn = CTRNN2pop(input_size, hidden_size, **kwargs).to(self.device)  # continuous time RNN
-        self.fc = nn.Linear(hidden_size, output_size, bias=self.bias).to(self.device)  # add linear readout layer
-        init.normal_(self.fc.weight, mean=0, std=0.5)
+        # self.fc = nn.Linear(hidden_size, output_size, bias=self.bias).to(self.device)  # add linear readout layer
+        # init.normal_(self.fc.weight, mean=0, std=0.5)
 
     def forward(self, x, hidden=None):
         x = x.to(self.device)  # input tensor of shape (Seq Len, Batch, Input Dim)
         rnn_output, _ = self.rnn(x, hidden=hidden)  # get activity of the rnn
-        out = torch.stack((rnn_output.mean(axis=-1), rnn_output.std(axis=-1) ** 2), dim=-1)  # self.fc(rnn_output)  # linear output to the activity of the rnn
+        out = torch.stack([
+            torch.mean(rnn_output[:, :, :int(self.rnn.hidden_size / 2)], dim=-1),
+            torch.mean(rnn_output[:, :, int(self.rnn.hidden_size / 2):], dim=-1),
+            torch.var(rnn_output[:, :, :int(self.rnn.hidden_size / 2)], dim=-1),
+            torch.var(rnn_output[:, :, int(self.rnn.hidden_size / 2):], dim=-1)
+        ], dim=-1)
+        # rnn_output_excitatory = rnn_output[:self.number_neurons_excitatory]
+        # rnn_output_inhibitory = rnn_output[self.number_neurons_excitatory:]
+        # out = torch.stack(
+        #     (rnn_output_excitatory.mean(axis=-1), rnn_output_inhibitory.mean(axis=-1),
+        #      rnn_output_excitatory.std(axis=-1) ** 2, rnn_output_inhibitory.std(axis=-1) ** 2), dim=-1
+        # )
         return out, rnn_output
