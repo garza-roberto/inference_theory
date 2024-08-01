@@ -3,6 +3,7 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+from scipy import stats
 from torch.nn import init, functional as F
 
 
@@ -21,6 +22,7 @@ class MaskedInputLinear(nn.Linear):
 
     def forward(self, input):
         return F.linear(input, torch.abs(self.weight) * self.mask_input, self.bias)
+
 
 class CTRNN4pop(nn.Module):  # to create a recurrent neural network with an input layer (does not have an output layer yet)
     def __init__(self, input_size, hidden_size, **kwargs):
@@ -49,8 +51,17 @@ class CTRNN4pop(nn.Module):  # to create a recurrent neural network with an inpu
         # initialize the input and hidden weights
         init.trunc_normal_(self.input2h.weight, mean=0, std=0.5, a=0)
         # init.trunc_normal_(self.h2h.weight, mean=0, std=1 / np.sqrt(hidden_size), a=0)  # initialize recurrent weights to g/sqrt(N) (with spectral radius of 1)
-        self.h2h.weight = torch.nn.Parameter(torch.cat((torch.from_numpy(np.random.exponential(1, (hidden_size, self.number_neurons_excitatory)).astype(np.float32)),
-                                                               torch.from_numpy(np.random.exponential(0.2, (hidden_size, hidden_size-self.number_neurons_excitatory)).astype(np.float32))), dim=-1))
+        # self.h2h.weight = torch.nn.Parameter(torch.cat((torch.from_numpy(np.random.exponential(1, (hidden_size, self.number_neurons_excitatory)).astype(np.float32)),
+        #                                                        torch.from_numpy(np.random.exponential(0.2, (hidden_size, hidden_size-self.number_neurons_excitatory)).astype(np.float32))), dim=-1))
+        mu_small = 0
+        mu_large = 5
+        a_small, b_small = (0 - mu_small) / 0.5, (2 - mu_small) / 0.5
+        a_large, b_large = (0 - mu_large) / 0.5, (2 - mu_large) / 0.5
+        truncnorm_small = stats.truncnorm(a_small, b_small, loc=mu_small, scale=0.5)
+        truncnorm_large = stats.truncnorm(a_large, b_large, loc=mu_small, scale=0.5)
+        self.h2h.weight = torch.nn.Parameter(torch.cat((torch.from_numpy(truncnorm_large.rvs(size=(hidden_size, self.number_neurons_excitatory)).astype(np.float32)),
+                                                        torch.from_numpy(truncnorm_small.rvs(size=(hidden_size, hidden_size - self.number_neurons_excitatory)).astype(np.float32))), dim=-1))
+
 
         if self.train_initial_state:  # if we want to train initial conditions of the network
             # initial_hidden_tensor = torch.zeros(1, hidden_size, requires_grad=True,device=self.device) # if you want to initialize the network activity to 0s

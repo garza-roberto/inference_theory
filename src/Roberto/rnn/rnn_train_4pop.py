@@ -318,6 +318,16 @@ for i_pop in range(4):
         hist_values, bin_edges = np.histogram(W_i_flat)
         bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2
         axs[i_pop, j_pop].plot(bin_centers, hist_values)  # , label=f"{cell_label_list[i_pop]}-{cell_label_list[j_pop]}")
+        axs[i_pop, j_pop].set_xlim([0, 1])
+        axs[i_pop, j_pop].set_ylim([0, 80])
+        if i_pop == 0:
+            axs[i_pop, j_pop].set_xlabel(cell_label_list[j_pop])
+        else:
+            axs[i_pop, j_pop].set_xticks([])
+        if j_pop == 0:
+            axs[i_pop, j_pop].set_xlabel(cell_label_list[j_pop])
+        else:
+            axs[i_pop, j_pop].set_yticks([])
 fig.legend()
 
 plt.show()
