@@ -7,10 +7,13 @@ from scipy.io import loadmat
 from torch.utils.data import DataLoader, random_split
 
 from src.Roberto.rnn.model.rnn_2pop import RNNNet2pop
-from src.Roberto.rnn.tasks.moments_task_Npop import moments_task_interpolate, moments_task_interpolate_linda
-from src.Roberto.rnn.utils import plot_trial, train_model
+from src.Roberto.rnn.tasks.moments_task_Npop import moments_task_interpolate
+from src.Roberto.rnn.utils.plot import plot_trial
 
 import matplotlib
+
+from src.Roberto.rnn.utils.train import train_model
+
 matplotlib.use('Qt5Agg')
 
 device = "cpu"# ("mps" if torch.backends.mps.is_available() else "cpu") # *this line is mac M2/M3 specific

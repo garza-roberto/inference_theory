@@ -42,7 +42,7 @@ def phi_derivative(x):
 W_eigenvalues, W_eigenvectors = np.linalg.eig(W)
 
 # get mean recordings
-path_data = r"C:\Users\Roberto\Academics\courses\cajal_cn_2024\project\inference_theory\data\Data_cell_types_small_size.mat"
+path_data = r"/data/Data_cell_types_small_size.mat"
 data_raw = loadmat(path_data)
 contrast_list = np.squeeze(data_raw['contrast']) / 100
 # cell_activity = np.zeros((number_populations, number_contrasts))

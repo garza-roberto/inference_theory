@@ -8,9 +8,12 @@ from torch.utils.data import DataLoader, random_split
 
 from src.Roberto.rnn.model.rnn_4pop import RNNNet4pop
 from src.Roberto.rnn.tasks.moments_task_Npop import moments_task_interpolate
-from src.Roberto.rnn.utils import plot_trial, train_model, plot_trial_output_target
+from src.Roberto.rnn.utils.plot import plot_trial, plot_trial_output_target
 
 import matplotlib
+
+from src.Roberto.rnn.utils.train import train_model
+
 matplotlib.use('Qt5Agg')
 
 device = "cpu"# ("mps" if torch.backends.mps.is_available() else "cpu") # *this line is mac M2/M3 specific
@@ -47,7 +50,7 @@ for k in data_raw.keys():
 
 # %% define NN
 # Create a network instance
-model_test = RNNNet4pop(tau=50, input_size=input_size, hidden_size=hidden_size, output_size=output_size, bias=False, train_initial_state=train_initial_state)
+model_test = RNNNet4pop(tau=50, input_size=input_size, hidden_size=hidden_size, output_size=output_size, bias=0, train_initial_state=train_initial_state)
 model_test = model_test.to(device) # move to gpu
 h0 = model_test.rnn.h2h.weight
 print('Std of initial connectivity matrix is ' + str(h0.std()))
@@ -116,22 +119,20 @@ for n in range(1):
 
 # %% train
 # Network Parameters
-hidden_size = 20  # number of neurons
+hidden_size = 40  # number of neurons
 input_size = np.array(sample_input).shape[0]  # input dimension
 output_size = np.array(sample_output).shape[0]  # output dimension
 dt = 1  # 1ms time step
 numb_epochs = 100  # number of training epochs (each training epoch run through a batch of data)
 
 # Create an instanciation of the model with the specification of the task above
-model = RNNNet4pop(input_size=input_size, hidden_size=hidden_size, output_size=output_size, dt=dt, bias=False, tau=50,
-               train_initial_state=True)
+model = RNNNet4pop(input_size=input_size, hidden_size=hidden_size, output_size=output_size, dt=dt, bias=True, tau=50, train_initial_state=True)
 print(model)
 
 continue_training = False  # to avoid re-initialization of the network if training is paused
 
 # run training
-model, losses, optimizer = train_model(model, train_loader, numb_epochs=numb_epochs,
-                                       continue_training=continue_training)
+model, losses, optimizer = train_model(model, train_loader, numb_epochs=numb_epochs, continue_training=continue_training)
 model_pred = model
 
 # plot loss during training
@@ -149,8 +150,7 @@ if losses[-1] > training_stop_threshold:
         additional_epochs = 100  # Define how many more epochs you want to train
         model, losses, optimizer = train_model(model, train_loader, numb_epochs=additional_epochs,
                                                continue_training=True, optimizer=optimizer, losses=losses)
-        if abs(update_loss - losses[
-            -1]) < 1:  # (max_val*l*0.1/100): # to update if the error is stuck in a certain range
+        if abs(update_loss - losses[-1]) < 1:  # (max_val*l*0.1/100): # to update if the error is stuck in a certain range
             break
         update_loss = losses[-1]
 
@@ -159,7 +159,6 @@ if losses[-1] > training_stop_threshold:
     plt.plot(losses, color="red")
     plt.xlabel("Training steps")
     plt.title("Losses")
-
 
 # %% test network after training
 # testing config
@@ -209,11 +208,42 @@ plt.ylabel('r(t)')
 
 
 plt.figure(figsize=(8, 8))
+connectivity_matrix = torch.relu(model.rnn.h2h.weight.data) @ model.rnn.mask
 plt.imshow(torch.relu(model.rnn.h2h.weight.data) @ model.rnn.mask)
-# plt.hlines(y=0, xmin=0, xmax=len(time_steps)-1, linestyles='dashed')
+gridline_positions = np.array([int(i*(model.rnn.hidden_size/4)) for i in range(5)])
+label_positions = (gridline_positions[1:] + gridline_positions[:-1]) / 2
+plt.hlines(gridline_positions[1:-1]-0.5, xmin=-0.5, xmax=gridline_positions[-1], color = 'k', linewidth = 0.5)
+plt.vlines(gridline_positions[1:-1]-0.5, ymin=-0.5, ymax=gridline_positions[-1], color = 'k',  linewidth = 0.5)
+plt.xticks(label_positions, ['E', 'PV', 'SOM', 'VIP'])
+plt.yticks(label_positions, ['E', 'PV', 'SOM', 'VIP'])
 plt.xlabel('pre-synaptic')
 plt.ylabel('post-synaptic')
 plt.colorbar()
 
 
 plt.show()
+
+
+number_neurons_per_pop = int(model.rnn.hidden_size/4)
+pop_matrix = np.zeros((4, 4))
+connectivity_matrix_abs = np.abs(connectivity_matrix)
+for i_pop in range(4):
+    for j_pop in range(4):
+        pop_matrix[i_pop, j_pop] = np.nanmean(connectivity_matrix_abs[i_pop*number_neurons_per_pop:(i_pop+1)*number_neurons_per_pop,
+                                                           j_pop*number_neurons_per_pop:(j_pop+1)*number_neurons_per_pop])
+
+plt.figure(figsize=(8, 8))
+plt.imshow(pop_matrix)
+plt.xlabel('pre-synaptic')
+plt.ylabel('post-synaptic')
+plt.colorbar()
+
+for layer in model.children():
+    if isinstance(layer, torch.nn.Linear):
+        print(layer.state_dict()['weight'])
+        print(layer.state_dict()['bias'])
+
+
+plt.show()
+
+
