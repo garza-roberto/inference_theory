@@ -43,14 +43,14 @@ class CTRNN4pop(nn.Module):  # to create a recurrent neural network with an inpu
                                               True)  # whether to train the initial condition of the network or not
         self.alpha = self.dt / self.tau  # in most cases dt = 1ms and tau = 50.
         # default definition of input and recurrent weights
-        self.input2h = MaskedInputLinear(input_size, hidden_size, self.mask_input, bias=self.bias).to(self.device)
+        self.input2h = MaskedInputLinear(input_size, hidden_size, self.mask_input, bias=False).to(self.device)
         self.h2h = MaskedExpLinear(hidden_size, hidden_size, mask=self.mask, bias=self.bias).to(self.device)
 
         # initialize the input and hidden weights
         init.trunc_normal_(self.input2h.weight, mean=0, std=0.5, a=0)
         # init.trunc_normal_(self.h2h.weight, mean=0, std=1 / np.sqrt(hidden_size), a=0)  # initialize recurrent weights to g/sqrt(N) (with spectral radius of 1)
-        self.h2h.weight = torch.nn.Parameter(torch.cat((torch.from_numpy(np.random.exponential(0.1, (hidden_size, self.number_neurons_excitatory)).astype(np.float32)),
-                                                               torch.from_numpy(np.random.exponential(1, (hidden_size, hidden_size-self.number_neurons_excitatory)).astype(np.float32))), dim=-1))
+        self.h2h.weight = torch.nn.Parameter(torch.cat((torch.from_numpy(np.random.exponential(1, (hidden_size, self.number_neurons_excitatory)).astype(np.float32)),
+                                                               torch.from_numpy(np.random.exponential(0.2, (hidden_size, hidden_size-self.number_neurons_excitatory)).astype(np.float32))), dim=-1))
 
         if self.train_initial_state:  # if we want to train initial conditions of the network
             # initial_hidden_tensor = torch.zeros(1, hidden_size, requires_grad=True,device=self.device) # if you want to initialize the network activity to 0s

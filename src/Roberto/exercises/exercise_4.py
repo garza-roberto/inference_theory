@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, random_split
 
 from src.Roberto.rnn.tasks.moments_task import moments_task_subsample, moments_task_interpolate
 from src.Roberto.rnn.model.rnn_1pop import RNNNet
-from src.Roberto.rnn.utils import plot_trial, train_model
+from src.Roberto.rnn.utils.plot import plot_trial, train_model
 
 device = "cpu"# ("mps" if torch.backends.mps.is_available() else "cpu") # *this line is mac M2/M3 specific
 
@@ -28,7 +28,7 @@ cell_label_list = ["pyr", "pv", "sst", "vip"]
 
 
 # %% fetch data and define configurations
-path_data = r"C:\Users\Roberto\Academics\courses\cajal_cn_2024\project\inference_theory\data\Data_cell_types_small_size.mat"
+path_data = r"/data/Data_cell_types_small_size.mat"
 data_raw = loadmat(path_data)
 contrast = np.squeeze(data_raw['contrast']) / 100
 cell_activity = {}

@@ -1,45 +1,16 @@
 import time
 
-from matplotlib import pyplot as plt
-from torch import nn, optim
+import torch
 
 
-def plot_trial(sample_input, sample_output):
-    plt.figure(figsize=(9, 3))
-    plt.subplot(1, 2, 1)
-    for k in range(sample_input.shape[0]):
-        plt.plot(sample_input[k, :], label=sample_input[k, 0], color="red")
-    plt.legend()
-    plt.xlabel('time')
-    plt.subplot(1, 2, 2)
-    for j in range(sample_output.shape[0]):
-        plt.plot(sample_output[j, :], label=sample_output[k, 0], color="orange")
-    plt.legend()
-    # plt.show()
-
-def plot_trial_output_target(sample_input, sample_output, sample_target):
-    plt.figure(figsize=(9, 3))
-    plt.subplot(1, 2, 1)
-    for k in range(sample_input.shape[0]):
-        plt.plot(sample_input[k, :], label=sample_input[k, 0], color="red")
-    plt.legend()
-    plt.xlabel('time')
-    plt.subplot(1, 2, 2)
-    for j in range(sample_output.shape[0]):
-        plt.plot(sample_target[j, :], label=f"target" if j==0 else "_nolegend_", color="orange")
-        plt.plot(sample_output[j, :], label=f"output" if j==0 else "_nolegend_", color="blue")
-    plt.legend()
-    # plt.show()
-
-
-def train_model(model, train_loader, numb_epochs, continue_training=False, optimizer=None, losses=[], bias=False):
+def train_model(model, train_loader, numb_epochs, continue_training=False, optimizer=None, losses=[]):
     # if training was paused
     if not continue_training or optimizer is None:
-        optimizer = optim.Adam(model.parameters(),
-                               lr=0.1)  # define optimization (pytorch tools). "lr" is learning rate for adam optimizer
+        optimizer = torch.optim.Adam(model.parameters(),
+                               lr=0.1, weight_decay=0.1)  # define optimization (pytorch tools). "lr" is learning rate for adam optimizer
         losses = []  # to save losses during training
 
-    criterion = nn.MSELoss()  # criterion = nn.CrossEntropyLoss()
+    criterion = torch.nn.MSELoss()  # criterion = nn.CrossEntropyLoss()
     # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones = [200,500,1000,2000,5000,7000,10000,15000,20000], gamma = 0.5) # learning rate scheduler
 
     running_loss = 0  # initialize running loss

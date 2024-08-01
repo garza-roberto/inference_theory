@@ -41,7 +41,7 @@ def phi(x: torch.tensor, a=1, k=2):
 
 
 # %% fetch data and process them
-path_data = r"C:\Users\Roberto\Academics\courses\cajal_cn_2024\project\inference_theory\data\Data_cell_types_small_size.mat"
+path_data = r"/data/Data_cell_types_small_size.mat"
 data_raw = loadmat(path_data)
 contrast = np.squeeze(data_raw['contrast']) / 100
 cell_activity = {}
