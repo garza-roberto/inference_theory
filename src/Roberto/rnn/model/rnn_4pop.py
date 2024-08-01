@@ -14,6 +14,14 @@ class MaskedExpLinear(nn.Linear):
     def forward(self, input):
         return F.linear(input, torch.relu(self.weight) @ self.mask, self.bias)
 
+class MaskedInputLinear(nn.Linear):
+    def __init__(self, in_features, out_features, mask: torch.tensor, bias=True):
+        super().__init__(in_features, out_features, bias)
+        self.mask_input = mask
+
+    def forward(self, input):
+        return F.linear(input, torch.abs(self.weight) * self.mask_input, self.bias)
+
 class CTRNN4pop(nn.Module):  # to create a recurrent neural network with an input layer (does not have an output layer yet)
     def __init__(self, input_size, hidden_size, **kwargs):
         # define all the network params
@@ -22,6 +30,9 @@ class CTRNN4pop(nn.Module):  # to create a recurrent neural network with an inpu
         self.number_neurons_excitatory = int(self.percentage_excitatory * hidden_size)
         self.mask = torch.diag(torch.ones(hidden_size))
         self.mask[self.number_neurons_excitatory:, self.number_neurons_excitatory:] *= -1
+        self.mask_input = torch.ones((hidden_size, input_size))
+        self.mask_input[2*self.number_neurons_excitatory:, :] *= 0
+
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.device = "cpu"  # ("mps" if torch.backends.mps.is_available() else "cpu") # define device as machine gpu
@@ -32,13 +43,14 @@ class CTRNN4pop(nn.Module):  # to create a recurrent neural network with an inpu
                                               True)  # whether to train the initial condition of the network or not
         self.alpha = self.dt / self.tau  # in most cases dt = 1ms and tau = 50.
         # default definition of input and recurrent weights
-        self.input2h = nn.Linear(input_size, hidden_size, bias=self.bias).to(self.device)
+        self.input2h = MaskedInputLinear(input_size, hidden_size, self.mask_input, bias=self.bias).to(self.device)
         self.h2h = MaskedExpLinear(hidden_size, hidden_size, mask=self.mask, bias=self.bias).to(self.device)
 
         # initialize the input and hidden weights
-        init.normal_(self.input2h.weight, mean=0, std=0.5)
-        init.normal_(self.h2h.weight, mean=0, std=1 / np.sqrt(
-            hidden_size))  # initialize recurrent weights to g/sqrt(N) (with spectral radius of 1)
+        init.trunc_normal_(self.input2h.weight, mean=0, std=0.5, a=0)
+        # init.trunc_normal_(self.h2h.weight, mean=0, std=1 / np.sqrt(hidden_size), a=0)  # initialize recurrent weights to g/sqrt(N) (with spectral radius of 1)
+        self.h2h.weight = torch.nn.Parameter(torch.cat((torch.from_numpy(np.random.exponential(0.1, (hidden_size, self.number_neurons_excitatory)).astype(np.float32)),
+                                                               torch.from_numpy(np.random.exponential(1, (hidden_size, hidden_size-self.number_neurons_excitatory)).astype(np.float32))), dim=-1))
 
         if self.train_initial_state:  # if we want to train initial conditions of the network
             # initial_hidden_tensor = torch.zeros(1, hidden_size, requires_grad=True,device=self.device) # if you want to initialize the network activity to 0s
@@ -82,8 +94,8 @@ class RNNNet4pop(nn.Module):  # to create the full model with the recurrent part
         self.bias = kwargs.get('bias', False)
         self.device = "cpu"  # ("mps" if torch.backends.mps.is_available() else "cpu")
         self.rnn = CTRNN4pop(input_size, hidden_size, **kwargs).to(self.device)  # continuous time RNN
-        self.fc = nn.Linear(hidden_size, output_size, bias=self.bias).to(self.device)  # add linear readout layer
-        init.normal_(self.fc.weight, mean=0, std=0.5)
+        # self.fc = nn.Linear(hidden_size, output_size, bias=self.bias).to(self.device)  # add linear readout layer
+        # init.normal_(self.fc.weight, mean=0, std=0.5)
 
     def forward(self, x, hidden=None):
         x = x.to(self.device)  # input tensor of shape (Seq Len, Batch, Input Dim)

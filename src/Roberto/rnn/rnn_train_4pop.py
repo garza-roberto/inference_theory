@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, random_split
 
 from src.Roberto.rnn.model.rnn_4pop import RNNNet4pop
 from src.Roberto.rnn.tasks.moments_task_Npop import moments_task_interpolate
-from src.Roberto.rnn.utils import plot_trial, train_model
+from src.Roberto.rnn.utils import plot_trial, train_model, plot_trial_output_target
 
 import matplotlib
 matplotlib.use('Qt5Agg')
@@ -23,7 +23,7 @@ batch_size = 20             # size of data batch for training
 seq_len = 1000              # sequence length
 input_size = 2              # input dimension
 output_size = 2             # output dimension
-hidden_size = 50           # number of neurons in the recurrent network or "hidden layer"
+hidden_size = 20           # number of neurons in the recurrent network or "hidden layer"
 train_initial_state = True  # whether we want to train the initial state of the network
 inhibitory_cells = ["pv", "sst", "vip"]
 cell_label_list = ["pyr", "pv", "sst", "vip"]
@@ -76,7 +76,7 @@ cell_activity_sample = {}
 config = {
     "r": cell_activity_all,
     "contrasts": contrast,
-    "n_neurons": 1e4
+    "n_neurons": 1e3
 }
 
 # create training data set
@@ -116,11 +116,11 @@ for n in range(1):
 
 # %% train
 # Network Parameters
-hidden_size = 100  # number of neurons
+hidden_size = 20  # number of neurons
 input_size = np.array(sample_input).shape[0]  # input dimension
 output_size = np.array(sample_output).shape[0]  # output dimension
 dt = 1  # 1ms time step
-numb_epochs = 1000  # number of training epochs (each training epoch run through a batch of data)
+numb_epochs = 100  # number of training epochs (each training epoch run through a batch of data)
 
 # Create an instanciation of the model with the specification of the task above
 model = RNNNet4pop(input_size=input_size, hidden_size=hidden_size, output_size=output_size, dt=dt, bias=False, tau=50,
@@ -146,7 +146,7 @@ if losses[-1] > training_stop_threshold:
     while losses[-1] > training_stop_threshold:
         update_loss = losses[-1]
         print(f"Loss is still high ({losses[-1]:.4f}). Continuing training...")
-        additional_epochs = 2000  # Define how many more epochs you want to train
+        additional_epochs = 100  # Define how many more epochs you want to train
         model, losses, optimizer = train_model(model, train_loader, numb_epochs=additional_epochs,
                                                continue_training=True, optimizer=optimizer, losses=losses)
         if abs(update_loss - losses[
@@ -177,7 +177,7 @@ outputs, rnn_activity = model(inputs) # get predictions
 
 np.random.seed()
 numb_neurons = rnn_activity.shape[2]
-r_idx = np.random.choice(np.arange(numb_neurons), 10, replace=False) # choose 10 random neurons
+r_idx = np.random.choice(np.arange(numb_neurons), 10, replace=False)  # choose 10 random neurons
 time_steps = np.arange(inputs.shape[0]) # or 0 depends on above
 idx = np.random.randint(0,test_size-1)
 
@@ -198,8 +198,7 @@ output = outputs[:, trial_idx, :].T
 # print(input.shape)
 config['sample_output'] = output # add network output to config
 config['post_training'] = True # add network output to config
-plot_trial(input,target)
-plot_trial(input,output)
+plot_trial_output_target(input, output, target)
 
 plt.figure(figsize=(8, 3))
 for i in r_idx:
@@ -209,7 +208,9 @@ plt.xlabel('Time Steps')
 plt.ylabel('r(t)')
 
 
-plt.imshow(torch.relu(model.rnn.h2h.weight.data) @ model.rnn.ei_diag)
+plt.figure(figsize=(8, 8))
+plt.imshow(torch.relu(model.rnn.h2h.weight.data) @ model.rnn.mask)
+# plt.hlines(y=0, xmin=0, xmax=len(time_steps)-1, linestyles='dashed')
 plt.xlabel('pre-synaptic')
 plt.ylabel('post-synaptic')
 plt.colorbar()
