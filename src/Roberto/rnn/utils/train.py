@@ -3,11 +3,11 @@ import time
 import torch
 
 
-def train_model(model, train_loader, numb_epochs, continue_training=False, optimizer=None, losses=[]):
+def train_model(model, train_loader, numb_epochs, continue_training=False, optimizer=None, losses=[], weight_decay=0):
     # if training was paused
     if not continue_training or optimizer is None:
         optimizer = torch.optim.Adam(model.parameters(),
-                               lr=0.1, weight_decay=0.1)  # define optimization (pytorch tools). "lr" is learning rate for adam optimizer
+                               lr=0.1, weight_decay=weight_decay)  # define optimization (pytorch tools). "lr" is learning rate for adam optimizer
         losses = []  # to save losses during training
 
     criterion = torch.nn.MSELoss()  # criterion = nn.CrossEntropyLoss()

@@ -132,7 +132,7 @@ print(model)
 continue_training = False  # to avoid re-initialization of the network if training is paused
 
 # run training
-model, losses, optimizer = train_model(model, train_loader, numb_epochs=numb_epochs, continue_training=continue_training)
+model, losses, optimizer = train_model(model, train_loader, numb_epochs=numb_epochs, continue_training=continue_training, weight_decay=1e-5)
 model_pred = model
 
 # plot loss during training
@@ -149,7 +149,7 @@ if losses[-1] > training_stop_threshold:
         print(f"Loss is still high ({losses[-1]:.4f}). Continuing training...")
         additional_epochs = 100  # Define how many more epochs you want to train
         model, losses, optimizer = train_model(model, train_loader, numb_epochs=additional_epochs,
-                                               continue_training=True, optimizer=optimizer, losses=losses)
+                                               continue_training=True, optimizer=optimizer, losses=losses, weight_decay=1e-5)
         if abs(update_loss - losses[-1]) < 1:  # (max_val*l*0.1/100): # to update if the error is stuck in a certain range
             break
         update_loss = losses[-1]
@@ -207,26 +207,23 @@ plt.xlabel('Time Steps')
 plt.ylabel('r(t)')
 
 
-plt.figure(figsize=(8, 8))
 connectivity_matrix = torch.relu(model.rnn.h2h.weight.data) @ model.rnn.mask
-plt.imshow(torch.relu(model.rnn.h2h.weight.data) @ model.rnn.mask)
+connectivity_matrix_abs = np.abs(connectivity_matrix)
+
+plt.figure(figsize=(8, 8))
+plt.matshow(connectivity_matrix_abs)
 gridline_positions = np.array([int(i*(model.rnn.hidden_size/4)) for i in range(5)])
 label_positions = (gridline_positions[1:] + gridline_positions[:-1]) / 2
-plt.hlines(gridline_positions[1:-1]-0.5, xmin=-0.5, xmax=gridline_positions[-1], color = 'k', linewidth = 0.5)
-plt.vlines(gridline_positions[1:-1]-0.5, ymin=-0.5, ymax=gridline_positions[-1], color = 'k',  linewidth = 0.5)
+plt.hlines(gridline_positions[1:-1]-0.5, xmin=-0.5, xmax=gridline_positions[-1]-0.5, color = 'k', linewidth = 0.5)
+plt.vlines(gridline_positions[1:-1]-0.5, ymin=-0.5, ymax=gridline_positions[-1]-0.5, color = 'k',  linewidth = 0.5)
 plt.xticks(label_positions, ['E', 'PV', 'SOM', 'VIP'])
 plt.yticks(label_positions, ['E', 'PV', 'SOM', 'VIP'])
 plt.xlabel('pre-synaptic')
 plt.ylabel('post-synaptic')
 plt.colorbar()
 
-
-plt.show()
-
-
 number_neurons_per_pop = int(model.rnn.hidden_size/4)
 pop_matrix = np.zeros((4, 4))
-connectivity_matrix_abs = np.abs(connectivity_matrix)
 for i_pop in range(4):
     for j_pop in range(4):
         pop_matrix[i_pop, j_pop] = np.nanmean(connectivity_matrix_abs[i_pop*number_neurons_per_pop:(i_pop+1)*number_neurons_per_pop,
@@ -234,16 +231,93 @@ for i_pop in range(4):
 
 plt.figure(figsize=(8, 8))
 plt.imshow(pop_matrix)
+gridline_positions_small = np.array([int(i) for i in range(5)])
+label_positions_small = (gridline_positions_small[1:] + gridline_positions_small[:-1]) / 2
+plt.hlines(gridline_positions_small[1:-1]-0.5, xmin=-0.5, xmax=gridline_positions_small[-1]-0.5, color = 'k', linewidth = 2)
+plt.vlines(gridline_positions_small[1:-1]-0.5, ymin=-0.5, ymax=gridline_positions_small[-1]-0.5, color = 'k',  linewidth = 2)
+plt.xticks(label_positions_small-0.5, ['E', 'PV', 'SOM', 'VIP'])
+plt.yticks(label_positions_small-0.5, ['E', 'PV', 'SOM', 'VIP'])
 plt.xlabel('pre-synaptic')
 plt.ylabel('post-synaptic')
-plt.colorbar()
+cbar = plt.colorbar()
+cbar.set_label('connectivity strength', rotation=90)
 
 for layer in model.children():
-    if isinstance(layer, torch.nn.Linear):
+    try:
         print(layer.state_dict()['weight'])
         print(layer.state_dict()['bias'])
+    except KeyError:
+        pass
 
+
+
+def sigmoid(z):
+    return 1/(1 + np.exp(-z))
+
+def sigmoid_prime(z):
+    return sigmoid(z)*(1-sigmoid(z))
+
+def jacobian(rates, weights, tau=1):
+    rates = np.array(rates)
+    weights = np.array(weights)
+    n_pop = weights.shape[0]
+    phi_prime_mat = np.diag(sigmoid_prime(rates))
+    T_inv = np.diag(np.ones(weights.shape[0])/tau)
+    jacobian = T_inv@((phi_prime_mat @ weights) - np.eye(n_pop))
+    return jacobian
+
+# plot eigen for matrices WITHOUT CELL TYPES
+fig, axs = plt.subplots(1, 1)
+J = jacobian(rnn_activity[-1,0,:], connectivity_matrix)
+W_eigenvalues, W_eigenvectors = np.linalg.eig(J)
+plt.scatter(np.real(W_eigenvalues), np.imag(W_eigenvalues), label=f"all")
+W = J
+for i_pop in range(4):
+    tau = 5 if i_pop == 0 else 1
+    selector = np.arange(gridline_positions[i_pop], gridline_positions[i_pop+1])  # .astype(int)
+    # print(f"selector: {selector}")
+    W_i = np.zeros((len(selector), len(selector)))
+    J_i = jacobian(rnn_activity[-1, 0, selector], W_i, tau=tau)
+    for i_W, i_s in enumerate(selector):
+        for j_W, j_s in enumerate(selector):
+            W_i[i_W, j_W] = W[i_s, j_s]
+    W_i_eigenvalues, W_i_eigenvectors = np.linalg.eig(W_i)
+    axs.scatter(np.real(W_i_eigenvalues), np.imag(W_i_eigenvalues), label=f"only {cell_label_list[i_pop]}")
+plt.legend()
+
+
+# plot eigen for matrices WITHOUT CELL TYPES
+fig, axs = plt.subplots(1, 1)
+selector = np.arange(number_neurons_per_pop * 4)
+for i_pop in range(4):
+    tau = 5 if i_pop == 0 else 1
+    selector_not = np.arange(gridline_positions[i_pop], gridline_positions[i_pop+1])  # .astype(int)
+    selector_i = np.delete(selector, selector_not)
+    # print(f"selector: {selector}")
+    W_i = np.zeros((number_neurons_per_pop*4 - len(selector_not), number_neurons_per_pop*4 - len(selector_not)))
+    J_i = jacobian(rnn_activity[-1, 0, selector_i], W_i, tau=tau)
+    for i_W, i_s in enumerate(selector_i):
+        for j_W, j_s in enumerate(selector_i):
+            W_i[i_W, j_W] = W[i_s, j_s]
+
+    W_i_eigenvalues, W_i_eigenvectors = np.linalg.eig(W_i)
+    axs.scatter(np.real(W_i_eigenvalues), np.imag(W_i_eigenvalues), label=f"w/ {cell_label_list[i_pop]}")
+    axs.set_xlabel("real")
+    axs.set_xlabel("imaginary")
+    axs.set_title("Eigenvalues of the Jacobian")
+fig.legend()
+
+
+fig, axs = plt.subplots(4, 4)
+for i_pop in range(4):
+    for j_pop in range(4):
+        selector_i_lim = (gridline_positions[i_pop], gridline_positions[i_pop+1])
+        selector_j_lim = (gridline_positions[j_pop], gridline_positions[j_pop+1])
+        W_i = connectivity_matrix_abs[selector_i_lim[0]:selector_i_lim[1], selector_j_lim[0]:selector_j_lim[1]]
+        W_i_flat = np.array(W_i).flatten()
+        hist_values, bin_edges = np.histogram(W_i_flat)
+        bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2
+        axs[i_pop, j_pop].plot(bin_centers, hist_values)  # , label=f"{cell_label_list[i_pop]}-{cell_label_list[j_pop]}")
+fig.legend()
 
 plt.show()
-
-
